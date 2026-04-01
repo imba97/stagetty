@@ -2,7 +2,7 @@
 
 TTY stage renderer with a rolling log window for CLI tools.
 
-![stagetty](.github/screenshot/stagetty.gif)
+![stagetty](https://github.com/imba97/stagetty/blob/main/.github/screenshot/stagetty.gif)
 
 `stagetty` is a small utility for stage-based terminal output with:
 
