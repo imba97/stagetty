@@ -13,13 +13,9 @@ TTY stage renderer with a rolling log window for CLI tools.
 
 ## Install
 
-For local development inside another project:
-
 ```bash
-pnpm add ../stagetty
+pnpm add stagetty
 ```
-
-After publishing, install it from npm with your chosen package name.
 
 ## Usage
 
