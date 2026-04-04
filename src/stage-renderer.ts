@@ -2,7 +2,13 @@ import type { StageColor, StageRendererOptions, StageTheme } from './types'
 import process from 'node:process'
 import readline from 'node:readline'
 import { styleText } from 'node:util'
-import { DEFAULT_MAX_LINES, DEFAULT_SPINNER_FRAMES, DEFAULT_SPINNER_INTERVAL } from './constants'
+import {
+  DEFAULT_MAX_LINES,
+  DEFAULT_SPINNER_FRAMES,
+  DEFAULT_SPINNER_INTERVAL,
+  HIDE_CURSOR_ESCAPE,
+  SHOW_CURSOR_ESCAPE
+} from './constants'
 
 const DEFAULT_THEME: StageTheme = {
   titleColor: 'blue',
@@ -16,6 +22,9 @@ const DEFAULT_THEME: StageTheme = {
 }
 
 export class StageRenderer {
+  private static exitHookRegistered = false
+  private static hiddenCursorStreams = new Set<NodeJS.WriteStream>()
+
   private readonly title: string
   private readonly maxLines: number
   private readonly spinnerFrames: readonly string[]
@@ -27,6 +36,7 @@ export class StageRenderer {
   private frameIndex = 0
   private interval: NodeJS.Timeout | undefined
   private renderedLineCount = 0
+  private cursorHidden = false
 
   constructor(title: string, options: StageRendererOptions = {}) {
     this.title = title
@@ -47,11 +57,18 @@ export class StageRenderer {
       return
     }
 
-    this.render()
-    this.interval = setInterval(() => {
-      this.frameIndex = (this.frameIndex + 1) % this.spinnerFrames.length
+    this.hideCursor()
+    try {
       this.render()
-    }, this.spinnerInterval)
+      this.interval = setInterval(() => {
+        this.frameIndex = (this.frameIndex + 1) % this.spinnerFrames.length
+        this.render()
+      }, this.spinnerInterval)
+    }
+    catch (error) {
+      this.showCursor()
+      throw error
+    }
   }
 
   appendLine(content: string) {
@@ -82,17 +99,59 @@ export class StageRenderer {
   }
 
   private finish(symbol: string, color?: StageColor) {
-    this.stopSpinner()
+    try {
+      this.stopSpinner()
 
-    const coloredSymbol = color ? styleText(color, symbol) : symbol
+      const coloredSymbol = color ? styleText(color, symbol) : symbol
 
-    if (!this.isTTY) {
+      if (!this.isTTY) {
+        this.stdout.write(`${coloredSymbol} ${this.title}\n`)
+        return
+      }
+
+      this.clearPreviousRender()
       this.stdout.write(`${coloredSymbol} ${this.title}\n`)
+    }
+    finally {
+      this.showCursor()
+    }
+  }
+
+  private hideCursor() {
+    if (!this.isTTY || this.cursorHidden) {
       return
     }
 
-    this.clearPreviousRender()
-    this.stdout.write(`${coloredSymbol} ${this.title}\n`)
+    StageRenderer.registerExitHook()
+    StageRenderer.hiddenCursorStreams.add(this.stdout)
+    this.stdout.write(HIDE_CURSOR_ESCAPE)
+    this.cursorHidden = true
+  }
+
+  private showCursor() {
+    if (!this.isTTY || !this.cursorHidden) {
+      return
+    }
+
+    this.stdout.write(SHOW_CURSOR_ESCAPE)
+    StageRenderer.hiddenCursorStreams.delete(this.stdout)
+    this.cursorHidden = false
+  }
+
+  private static registerExitHook() {
+    if (StageRenderer.exitHookRegistered) {
+      return
+    }
+
+    process.once('exit', () => {
+      for (const stream of StageRenderer.hiddenCursorStreams) {
+        stream.write(SHOW_CURSOR_ESCAPE)
+      }
+
+      StageRenderer.hiddenCursorStreams.clear()
+    })
+
+    StageRenderer.exitHookRegistered = true
   }
 
   private stopSpinner() {

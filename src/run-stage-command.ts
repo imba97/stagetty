@@ -4,6 +4,23 @@ import process from 'node:process'
 import { LINE_SPLIT_REGEX } from './constants'
 import { StageRenderer } from './stage-renderer'
 
+function quoteShellArg(arg: string) {
+  if (!arg) {
+    return '""'
+  }
+
+  // Quote and escape for common shell parsing rules.
+  return `"${arg.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
+}
+
+function buildShellCommand(command: string, args: string[]) {
+  if (args.length === 0) {
+    return command
+  }
+
+  return `${command} ${args.map(quoteShellArg).join(' ')}`
+}
+
 function flushBufferLines(
   buffer: string,
   isEnd: boolean,
