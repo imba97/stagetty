@@ -27,15 +27,24 @@ export async function runStageCommand(
 ) {
   const renderer = new StageRenderer(title, options)
   renderer.start()
+  const useShell = options.shell ?? process.platform === 'win32'
 
   await new Promise<void>((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      env: options.env,
-      shell: options.shell ?? process.platform === 'win32',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      ...options.spawnOptions
-    })
+    const child = useShell
+      ? spawn(buildShellCommand(command, args), {
+          cwd: options.cwd,
+          env: options.env,
+          shell: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          ...options.spawnOptions
+        })
+      : spawn(command, args, {
+          cwd: options.cwd,
+          env: options.env,
+          shell: false,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          ...options.spawnOptions
+        })
 
     let stdoutBuffer = ''
     let stderrBuffer = ''
